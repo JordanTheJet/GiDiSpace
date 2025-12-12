@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
+import { Upload, FileText, X, Loader2, Mic, Square } from 'lucide-react';
 
 interface ProfileCreatorProps {
     onComplete: () => void;
@@ -35,6 +35,14 @@ const ProfileCreator = ({ onComplete, editingProfile, isEditing = false }: Profi
     const [extractedText, setExtractedText] = useState('');
     const [isProcessingPdf, setIsProcessingPdf] = useState(false);
     const [dragActive, setDragActive] = useState(false);
+
+    // Voice capture state
+    const [isRecording, setIsRecording] = useState(false);
+    const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+    const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+    const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
+    const [voiceId, setVoiceId] = useState<string | null>(editingProfile?.voice_id || null);
+    const [voiceStatus, setVoiceStatus] = useState<string>('');
 
     const avatarOptions = [
         {
@@ -198,7 +206,9 @@ const ProfileCreator = ({ onComplete, editingProfile, isEditing = false }: Profi
             profileData.selected_avatar_model,
             profileData.ai_personality_prompt,
             profileData.bio,
-            profileData.interests
+            profileData.interests,
+            undefined, // cvText
+            voiceId || undefined
         );
 
         if (success) {
@@ -458,6 +468,115 @@ const ProfileCreator = ({ onComplete, editingProfile, isEditing = false }: Profi
                                 maxLength={100000}
                             />
                             <p className="text-xs text-gray-400 mt-1">{bio.length.toLocaleString()} characters</p>
+                        </div>
+
+                        {/* Voice Recording & Cloning */}
+                        <div>
+                            <label className="text-white mb-2 block">Voice Sample (Optional)</label>
+                            <p className="text-xs text-gray-400 mb-3">Record a short intro (30 seconds to 2 minutes). We'll clone your voice so your GiDi can speak like you!</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                                <Button
+                                    type="button"
+                                    variant={isRecording ? 'destructive' : 'default'}
+                                    className={isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'}
+                                    onClick={async () => {
+                                        if (isRecording && mediaRecorder) {
+                                            mediaRecorder.stop();
+                                            setIsRecording(false);
+                                            return;
+                                        }
+
+                                        try {
+                                            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                                            const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+                                            const recorder = new MediaRecorder(stream, { mimeType });
+                                            const chunks: BlobPart[] = [];
+
+                                            recorder.ondataavailable = (e) => {
+                                                if (e.data.size > 0) chunks.push(e.data);
+                                            };
+
+                                            recorder.onstop = async () => {
+                                                stream.getTracks().forEach(track => track.stop());
+                                                const blob = new Blob(chunks, { type: mimeType });
+                                                const url = URL.createObjectURL(blob);
+                                                setRecordedAudioUrl(url);
+                                                setVoiceStatus('Uploading to ElevenLabs...');
+
+                                                try {
+                                                    const formData = new FormData();
+                                                    formData.append('file', blob, 'voice.webm');
+                                                    formData.append('name', username || 'GiDi Voice');
+
+                                                    const res = await fetch('/api/voice/clone', {
+                                                        method: 'POST',
+                                                        body: formData,
+                                                    });
+
+                                                    if (!res.ok) {
+                                                        throw new Error(`Voice clone failed (${res.status})`);
+                                                    }
+
+                                                    const data = await res.json();
+                                                    setVoiceId(data.voice_id || null);
+                                                    setVoiceStatus(data.voice_id ? 'Voice cloned successfully!' : 'Clone failed');
+                                                } catch (err) {
+                                                    console.error('Voice clone error:', err);
+                                                    setVoiceStatus('Voice clone failed. Try again.');
+                                                }
+                                            };
+
+                                            recorder.start();
+                                            setMediaRecorder(recorder);
+                                            setIsRecording(true);
+                                            setVoiceStatus('Recording...');
+                                        } catch (err) {
+                                            console.error('Mic error:', err);
+                                            setVoiceStatus('Microphone access denied.');
+                                        }
+                                    }}
+                                >
+                                    {isRecording ? (
+                                        <span className="flex items-center gap-2"><Square className="w-4 h-4" /> Stop</span>
+                                    ) : (
+                                        <span className="flex items-center gap-2"><Mic className="w-4 h-4" /> Record</span>
+                                    )}
+                                </Button>
+
+                                {recordedAudioUrl && (
+                                    <audio controls src={previewAudioUrl || recordedAudioUrl} className="h-10" />
+                                )}
+
+                                {voiceId && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={async () => {
+                                            setVoiceStatus('Generating preview...');
+                                            try {
+                                                const resp = await fetch('/api/voice/preview', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ voice_id: voiceId, text: 'Hi, this is my GiDi voice!' }),
+                                                });
+                                                if (!resp.ok) throw new Error('Preview failed');
+                                                const blob = await resp.blob();
+                                                const url = URL.createObjectURL(blob);
+                                                setPreviewAudioUrl(url);
+                                                setVoiceStatus('Preview ready!');
+                                            } catch (err) {
+                                                console.error('Preview error:', err);
+                                                setVoiceStatus('Preview failed.');
+                                            }
+                                        }}
+                                    >
+                                        Test Voice
+                                    </Button>
+                                )}
+                            </div>
+                            {voiceStatus && <p className="text-xs text-gray-300 mt-2">{voiceStatus}</p>}
+                            {voiceId && <p className="text-xs text-green-400 mt-1">Voice ID: {voiceId}</p>}
                         </div>
 
                         <div className="flex gap-2">

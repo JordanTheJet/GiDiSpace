@@ -69,7 +69,8 @@ export interface GiDiSpaceStore {
         aiPersonalityPrompt?: string,
         bio?: string,
         interests?: string[],
-        cvText?: string
+        cvText?: string,
+        voiceId?: string
     ) => Promise<boolean>;
     loadProfile: () => Promise<boolean>;
     updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
@@ -127,7 +128,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
             },
 
             // Create a new profile - calls Python backend for embedding + Supabase for persistence
-            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests, cvText) => {
+            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests, cvText, voiceId) => {
                 const { userId } = get();
                 if (!userId) {
                     get().initializeUser();
@@ -164,7 +165,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                     }
 
                     // Also save to Supabase directly (in case backend didn't have Supabase configured)
-                    const profileData = {
+                    const profileData: Record<string, any> = {
                         id: currentUserId,
                         username,
                         selected_avatar_model: avatarModel,
@@ -172,6 +173,12 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                         bio: bio || '',
                         interests: interests || [],
                     };
+
+                    // Add voice_id if provided
+                    if (voiceId) {
+                        profileData.voice_id = voiceId;
+                        profileData.voice_ready = true;
+                    }
 
                     const { data: existingProfile } = await supabase
                         .from('profiles')
