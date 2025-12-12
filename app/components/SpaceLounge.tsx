@@ -257,8 +257,9 @@ const SpaceLounge = ({ onOpenChat }: SpaceLoungeProps) => {
 
         // Grid pattern on floor (subtle)
         const gridHelper = new THREE.PolarGridHelper(30, 8, 8, 64, 0x6366f1, 0x6366f1);
-        gridHelper.material.opacity = 0.1;
-        gridHelper.material.transparent = true;
+        const gridMaterial = gridHelper.material as THREE.Material;
+        gridMaterial.opacity = 0.1;
+        gridMaterial.transparent = true;
         gridHelper.position.y = 0.01;
         scene.add(gridHelper);
     };
@@ -837,7 +838,7 @@ const SpaceLounge = ({ onOpenChat }: SpaceLoungeProps) => {
             {/* Chat Panel */}
             {showChat && (
                 <div className="absolute bottom-4 left-4 z-10 w-96 h-96">
-                    <RoomChat />
+                    <RoomChat lobbyId="gidispace-main" />
                 </div>
             )}
 

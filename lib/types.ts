@@ -1,7 +1,21 @@
 // lib/types.ts
 
-// Import Supabase types that we use
-export type { Profile, AvatarState, CustomLobby } from './supabase';
+// Re-export types from lobbyStore
+export type { Profile, AvatarState } from './lobbyStore';
+
+// Custom Lobby type
+export interface CustomLobby {
+    id: string;
+    lobby_code: string;
+    name: string;
+    description?: string;
+    host_profile_id?: string;
+    additional_host_knowledge?: string;
+    use_my_profile?: boolean;
+    custom_host_name?: string;
+    is_public?: boolean;
+    created_at?: string;
+}
 
 // Chat system types
 export interface Message {

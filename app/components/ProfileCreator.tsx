@@ -110,7 +110,7 @@ const ProfileCreator = ({ onComplete, editingProfile, isEditing = false }: Profi
                 const { text } = await response.json();
                 setExtractedText(text);
                 // Append to bio
-                setBio(prev => prev ? `${prev}\n\n--- From uploaded PDF ---\n${text}` : text);
+                setBio((prev: string) => prev ? `${prev}\n\n--- From uploaded PDF ---\n${text}` : text);
             } else {
                 throw new Error('Failed to process PDF');
             }
