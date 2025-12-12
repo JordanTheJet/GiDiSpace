@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Ava the RecSys Scientist",
+    "summary": "Data scientist with 6 years building recommender systems and ranking pipelines. Loves causal inference and bandits.",
+    "transcript": "Hi I'm Ava, I live for experimentation and fast iteration on recsys models.",
+    "interests": ["recsys", "python", "ml", "data"]
+  },
+  {
+    "name": "Leo the LLM Engineer",
+    "summary": "ML engineer focused on LLM tooling, prompt engineering, and retrieval augmented generation for enterprise search.",
+    "transcript": "I prototype with small models, deploy on Kubernetes, and track evals.",
+    "interests": ["llm", "rag", "python", "cloud"]
+  },
+  {
+    "name": "Maya the PM",
+    "summary": "Product manager shipping AI features for collaboration tools. Background in UX research and growth.",
+    "transcript": "I like pairing closely with design and engineering to ship measurable impact.",
+    "interests": ["product", "design", "ai"]
+  },
+  {
+    "name": "Noah the Voice Researcher",
+    "summary": "Researcher exploring speech understanding, diarization, and voice cloning safety.",
+    "transcript": "I spend weekends hacking on audio datasets and safe voice cloning.",
+    "interests": ["audio", "voice", "ml"]
+  },
+  {
+    "name": "Sofia the XR Builder",
+    "summary": "XR engineer using Unity and Three.js to craft multiplayer social spaces with WebRTC.",
+    "transcript": "Latency and presence are everything. I ship bold 3D experiences.",
+    "interests": ["unity", "three.js", "webrtc", "frontend"]
+  }
+]
