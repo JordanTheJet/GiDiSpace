@@ -14,7 +14,17 @@ export function loadMixamoAnimation( url, vrm ) {
 	const loader = new FBXLoader(); // A loader which loads FBX
 	return loader.loadAsync( url ).then( ( asset ) => {
 
-		const clip = THREE.AnimationClip.findByName( asset.animations, 'mixamo.com' ); // extract the AnimationClip
+		// Try to find 'mixamo.com' clip first, otherwise use the first available animation
+		let clip = THREE.AnimationClip.findByName( asset.animations, 'mixamo.com' );
+		if ( !clip && asset.animations.length > 0 ) {
+			clip = asset.animations[ 0 ];
+			console.log( `Using first animation clip: ${clip.name}` );
+		}
+
+		if ( !clip ) {
+			console.error( 'No animation clips found in FBX file:', url );
+			return null;
+		}
 
 		const tracks = []; // KeyframeTracks compatible with VRM will be added here
 
@@ -24,7 +34,13 @@ export function loadMixamoAnimation( url, vrm ) {
 		const _vec3 = new THREE.Vector3();
 
 		// Adjust with reference to hips height.
-		const motionHipsHeight = asset.getObjectByName( 'mixamorigHips' ).position.y;
+		const hipsNode = asset.getObjectByName( 'mixamorigHips' );
+		if ( !hipsNode ) {
+			console.error( 'mixamorigHips not found in FBX. This may not be a Mixamo animation:', url );
+			// Return the raw clip without retargeting as fallback
+			return new THREE.AnimationClip( 'vrmAnimation', clip.duration, [] );
+		}
+		const motionHipsHeight = hipsNode.position.y;
 		const vrmHipsY = vrm.humanoid?.getNormalizedBoneNode( 'hips' ).getWorldPosition( _vec3 ).y;
 		const vrmRootY = vrm.scene.getWorldPosition( _vec3 ).y;
 		const vrmHipsHeight = Math.abs( vrmHipsY - vrmRootY );

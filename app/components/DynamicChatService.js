@@ -1,7 +1,5 @@
 // app/components/DynamicChatService.js - Enhanced to handle BOTH NPCs and Digital Twins
 
-import inventoryData from '@/public/context/glb_metadata_output.txt';
-
 class DynamicChatService {
     /**
      * @param {Object} config - Either lobbyConfig for NPCs or profileConfig for digital twins

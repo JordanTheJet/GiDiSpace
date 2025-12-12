@@ -45,7 +45,11 @@ export default function Home() {
 
   // Show the 3D space if user has entered
   if (showSpace && profile) {
-    return <SpaceLounge />;
+    return (
+      <div className="fixed inset-0 w-screen h-screen overflow-hidden">
+        <SpaceLounge />
+      </div>
+    );
   }
 
   // Show profile creator or welcome screen

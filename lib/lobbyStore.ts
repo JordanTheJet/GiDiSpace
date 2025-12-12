@@ -4,6 +4,9 @@ import { persist } from 'zustand/middleware';
 import { supabase } from './supabase';
 import DynamicChatService from '@/app/components/DynamicChatService';
 
+// Backend API URL
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+
 // Types
 export interface Profile {
     id: string;
@@ -13,6 +16,9 @@ export interface Profile {
     bio?: string;
     interests?: string[];
     created_at?: string;
+    // From Python backend embedding
+    coords?: [number, number, number];
+    room?: string;
 }
 
 export interface AvatarState {
@@ -25,13 +31,25 @@ export interface AvatarState {
     last_active: string;
 }
 
+export interface GiDiFromBackend {
+    id: string;
+    name: string;
+    coords: [number, number, number];
+    room: string;
+    avatar_model: string;
+    bio?: string;
+    interests: string[];
+    is_online: boolean;
+}
+
 export interface GiDiSpaceStore {
     // User state
     userId: string | null;
     profile: Profile | null;
     isLoading: boolean;
 
-    // Other GiDis in the space
+    // Other GiDis in the space (from Python backend)
+    allGidis: GiDiFromBackend[];
     otherAvatars: Map<string, AvatarState>;
     profilesCache: Map<string, Profile>;
 
@@ -50,7 +68,8 @@ export interface GiDiSpaceStore {
         avatarModel: string,
         aiPersonalityPrompt?: string,
         bio?: string,
-        interests?: string[]
+        interests?: string[],
+        cvText?: string
     ) => Promise<boolean>;
     loadProfile: () => Promise<boolean>;
     updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
@@ -58,7 +77,9 @@ export interface GiDiSpaceStore {
     // Avatar state
     updateAvatarState: (updates: Partial<AvatarState>) => Promise<void>;
     loadOtherGidis: () => Promise<void>;
+    loadAllGidisFromBackend: () => Promise<void>;
     loadProfileInfo: (profileId: string) => Promise<Profile | null>;
+    getNeighbors: (k?: number) => Promise<GiDiFromBackend[]>;
 
     // Chat
     startChatWithGidi: (profile: Profile) => void;
@@ -93,6 +114,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
             userId: null,
             profile: null,
             isLoading: false,
+            allGidis: [],
             otherAvatars: new Map(),
             profilesCache: new Map(),
             activeChatService: null,
@@ -104,8 +126,8 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                 set({ userId });
             },
 
-            // Create a new profile
-            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests) => {
+            // Create a new profile - calls Python backend for embedding + Supabase for persistence
+            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests, cvText) => {
                 const { userId } = get();
                 if (!userId) {
                     get().initializeUser();
@@ -117,13 +139,31 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                 set({ isLoading: true });
 
                 try {
-                    // Check if profile already exists
-                    const { data: existingProfile } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', currentUserId)
-                        .single();
+                    // Call Python backend to create profile with embedding
+                    const backendResponse = await fetch(`${BACKEND_URL}/profiles`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: currentUserId,
+                            name: username,
+                            cv_text: cvText || bio || '',
+                            bio: bio || '',
+                            interests: interests || [],
+                            avatar_model: avatarModel,
+                            ai_personality_prompt: aiPersonalityPrompt || '',
+                        }),
+                    });
 
+                    if (!backendResponse.ok) {
+                        console.error('Backend error:', await backendResponse.text());
+                        // Fallback to Supabase-only if backend is unavailable
+                        console.log('Falling back to Supabase-only profile creation');
+                    } else {
+                        const backendData = await backendResponse.json();
+                        console.log('Profile created with embedding:', backendData);
+                    }
+
+                    // Also save to Supabase directly (in case backend didn't have Supabase configured)
                     const profileData = {
                         id: currentUserId,
                         username,
@@ -133,9 +173,14 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                         interests: interests || [],
                     };
 
+                    const { data: existingProfile } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', currentUserId)
+                        .single();
+
                     let result;
                     if (existingProfile) {
-                        // Update existing profile
                         result = await supabase
                             .from('profiles')
                             .update(profileData)
@@ -143,7 +188,6 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                             .select()
                             .single();
                     } else {
-                        // Insert new profile
                         result = await supabase
                             .from('profiles')
                             .insert(profileData)
@@ -152,7 +196,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                     }
 
                     if (result.error) {
-                        console.error('Error creating profile:', result.error);
+                        console.error('Error saving to Supabase:', result.error);
                         set({ isLoading: false });
                         return false;
                     }
@@ -161,6 +205,10 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                         profile: result.data as Profile,
                         isLoading: false
                     });
+
+                    // Update online status
+                    get().markOnline();
+
                     return true;
                 } catch (error) {
                     console.error('Error in createProfile:', error);
@@ -242,13 +290,13 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                             profile_id: userId,
                             ...updates,
                             last_active: new Date().toISOString()
-                        });
+                        }, { onConflict: 'profile_id' });
                 } catch (error) {
                     console.error('Error updating avatar state:', error);
                 }
             },
 
-            // Load other GiDis in the space
+            // Load other GiDis in the space (from Supabase)
             loadOtherGidis: async () => {
                 const { userId } = get();
 
@@ -287,6 +335,40 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                     });
                 } catch (error) {
                     console.error('Error in loadOtherGidis:', error);
+                }
+            },
+
+            // Load all GiDis from Python backend (with 3D coordinates)
+            loadAllGidisFromBackend: async () => {
+                try {
+                    const response = await fetch(`${BACKEND_URL}/profiles`);
+                    if (!response.ok) {
+                        console.error('Failed to load GiDis from backend');
+                        return;
+                    }
+                    const data = await response.json();
+                    set({ allGidis: data.profiles || [] });
+                } catch (error) {
+                    console.error('Error loading GiDis from backend:', error);
+                }
+            },
+
+            // Get neighbors for current user from Python backend
+            getNeighbors: async (k = 5) => {
+                const { userId } = get();
+                if (!userId) return [];
+
+                try {
+                    const response = await fetch(`${BACKEND_URL}/neighbors/id/${userId}?k=${k}`);
+                    if (!response.ok) {
+                        console.error('Failed to get neighbors');
+                        return [];
+                    }
+                    const data = await response.json();
+                    return data.neighbors || [];
+                } catch (error) {
+                    console.error('Error getting neighbors:', error);
+                    return [];
                 }
             },
 
@@ -357,7 +439,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                             profile_id: userId,
                             is_online: true,
                             last_active: new Date().toISOString()
-                        });
+                        }, { onConflict: 'profile_id' });
                 } catch (error) {
                     console.error('Error marking online:', error);
                 }
