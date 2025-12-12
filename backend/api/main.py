@@ -25,6 +25,7 @@ class ProfileRequest(BaseModel):
     cv_text: Optional[str] = None
     transcript: Optional[str] = None
     interests: List[str] = []
+    voice_id: Optional[str] = None
 
 
 class NeighborResponse(BaseModel):
@@ -45,6 +46,7 @@ def _load_demo_profiles() -> None:
                 cv_text=profile.get("summary"),
                 transcript=profile.get("transcript"),
                 interests=profile.get("interests", []),
+                voice_id=profile.get("voice_id"),
             )
         )
         coords = map_to_3d_space(np.array(created["embedding"], dtype=np.float32)).tolist()
@@ -74,6 +76,7 @@ def create_profile(profile: ProfileRequest) -> Dict[str, object]:
             cv_text=profile.cv_text,
             transcript=profile.transcript,
             interests=profile.interests,
+            voice_id=profile.voice_id,
         )
     )
     coords = map_to_3d_space(np.array(created["embedding"], dtype=np.float32)).tolist()

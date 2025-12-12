@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS profiles (
     ai_personality_prompt TEXT,
     bio TEXT,
     interests TEXT[] DEFAULT '{}',
+    voice_id TEXT,
+    voice_preview_url TEXT,
+    voice_ready BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

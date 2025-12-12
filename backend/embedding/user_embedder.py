@@ -26,6 +26,7 @@ class UserProfile:
     audio_path: Optional[str] = None
     transcript: Optional[str] = None
     interests: Optional[List[str]] = None
+    voice_id: Optional[str] = None
 
 
 def embed_user(profile: UserProfile) -> Dict[str, object]:
@@ -37,7 +38,9 @@ def embed_user(profile: UserProfile) -> Dict[str, object]:
         cv_data = parse_cv_text(profile.cv_text)
     else:
         cv_data = {"summary": "", "skills": [], "experience": []}
-    voice_features = analyze_voice(profile.audio_path or "audio_placeholder", transcript=profile.transcript)
+    # If a voice_id is present, include it in the hash to seed deterministic traits
+    voice_seed = profile.transcript or profile.voice_id or profile.audio_path or "audio_placeholder"
+    voice_features = analyze_voice(profile.audio_path or "audio_placeholder", transcript=voice_seed)
     interest_scores = normalize_interests(profile.interests or [])
 
     text_features = {

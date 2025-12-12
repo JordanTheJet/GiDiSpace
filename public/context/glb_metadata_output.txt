@@ -1,0 +1,2 @@
+GiDiSpace placeholder GLB metadata
+- No asset metadata provided yet. Add lines here for lobby/NPC context if desired.

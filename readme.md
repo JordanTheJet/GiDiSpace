@@ -8,6 +8,8 @@
 - Spatial utilities to map embeddings into 3D coords, assign rooms, and find nearest neighbors.
 - Demo data (5 personas) and a script to regenerate cached embeddings.
 - Dockerfile and pytest coverage for determinism.
+- Next.js (app router) frontend for GiDiSpace with profile creation, VRM avatars, PDF upload, chat (stubbed streaming API), and Supabase-backed lobby state.
+- ElevenLabs voice cloning flow in the profile creator (record 1–2 mins, upload, preview via TTS) with voice IDs stored alongside profiles.
 
 ## 🎯 Vision
 
@@ -138,6 +140,17 @@ pip install -r requirements.txt
 uvicorn backend.api.main:app --reload
 ```
 
+### Frontend (Next.js) quickstart
+```bash
+# Install node deps
+npm install
+
+# Run the web client (expects Supabase env vars set; see .env.example)
+npm run dev
+```
+
+Backend runs on :8000 by default; frontend on :3000. Keep both running for end-to-end testing.
+
 ### Quickstart (API)
 ```bash
 uvicorn backend.api.main:app --reload
@@ -164,6 +177,24 @@ python scripts/create_demo_users.py  # writes data/embeddings/demo_embeddings.js
 ```bash
 pytest
 ```
+
+### Supabase setup (for the frontend)
+- Create a Supabase project and add `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` to `.env` (see `.env.example`).
+- Run the SQL in `supabase/schema.sql` in the Supabase SQL editor to provision tables/policies.
+- The frontend uses Supabase for profile and lobby persistence; the backend remains API/embedding oriented.
+- If your project already has the base schema, add voice fields with:
+  ```
+  ALTER TABLE profiles
+    ADD COLUMN IF NOT EXISTS voice_id TEXT,
+    ADD COLUMN IF NOT EXISTS voice_preview_url TEXT,
+    ADD COLUMN IF NOT EXISTS voice_ready BOOLEAN DEFAULT false;
+  ```
+
+### Frontend API helpers
+- `/api/extract-pdf` — accepts a PDF file upload (FormData) and returns extracted text (falls back to a placeholder if extraction unavailable).
+- `/api/chat` — SSE-style endpoint returning a quick stubbed reply in OpenAI-stream format for NPC/digital-twin chat.
+- `/api/voice/clone` — uploads recorded audio to ElevenLabs and returns a `voice_id`.
+- `/api/voice/preview` — generates a short TTS clip for a cloned voice.
 
 ### Demo Setup
 ```bash

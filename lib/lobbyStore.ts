@@ -12,6 +12,9 @@ export interface Profile {
     ai_personality_prompt?: string;
     bio?: string;
     interests?: string[];
+    voice_id?: string;
+    voice_preview_url?: string;
+    voice_ready?: boolean;
     created_at?: string;
 }
 
@@ -50,7 +53,10 @@ export interface GiDiSpaceStore {
         avatarModel: string,
         aiPersonalityPrompt?: string,
         bio?: string,
-        interests?: string[]
+        interests?: string[],
+        voice_id?: string,
+        voice_preview_url?: string,
+        voice_ready?: boolean
     ) => Promise<boolean>;
     loadProfile: () => Promise<boolean>;
     updateProfile: (updates: Partial<Profile>) => Promise<boolean>;
@@ -105,7 +111,7 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
             },
 
             // Create a new profile
-            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests) => {
+            createProfile: async (username, avatarModel, aiPersonalityPrompt, bio, interests, voice_id, voice_preview_url, voice_ready) => {
                 const { userId } = get();
                 if (!userId) {
                     get().initializeUser();
@@ -118,11 +124,14 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
 
                 try {
                     // Check if profile already exists
-                    const { data: existingProfile } = await supabase
+                    const { data: existingProfile, error: existingError } = await supabase
                         .from('profiles')
                         .select('*')
                         .eq('id', currentUserId)
-                        .single();
+                        .maybeSingle();
+                    if (existingError && existingError.code !== 'PGRST116') {
+                        console.error('Error checking existing profile:', existingError);
+                    }
 
                     const profileData = {
                         id: currentUserId,
@@ -131,6 +140,9 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                         ai_personality_prompt: aiPersonalityPrompt || '',
                         bio: bio || '',
                         interests: interests || [],
+                        voice_id: voice_id || '',
+                        voice_preview_url: voice_preview_url || '',
+                        voice_ready: Boolean(voice_ready),
                     };
 
                     let result;
@@ -185,9 +197,13 @@ export const useLobbyStore = create<GiDiSpaceStore>()(
                         .from('profiles')
                         .select('*')
                         .eq('id', userId)
-                        .single();
+                        .maybeSingle();
 
-                    if (error || !data) {
+                    if (error && error.code !== 'PGRST116') {
+                        console.error('Error loading profile:', error);
+                    }
+
+                    if (!data) {
                         set({ profile: null, isLoading: false });
                         return false;
                     }
